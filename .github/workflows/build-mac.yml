@@ -1,0 +1,34 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch: # 允許手動一鍵觸發打包
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-mac:
+    runs-on: macos-latest # 使用 GitHub 免費提供的最新雲端 Mac 環境
+
+    steps:
+      - name: 1. 取得專案程式碼
+        uses: actions/checkout@v4
+
+      - name: 2. 設定 Python 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 3. 安裝 pywebview 與 pyinstaller
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pywebview pyinstaller
+
+      - name: 4. 打包成 macOS .app 應用程式
+        run: |
+          python3 -m PyInstaller --noconsole --windowed --add-data "index.html:." --name "個人代辦小精靈" app.py
+
+      - name: 5. 壓縮並上傳成品供下載
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mac版-個人代辦小精靈
+          path: dist/個人代辦小精靈.app
