@@ -1,39 +1,49 @@
 name: Build macOS App
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-mac:
-    runs-on: macos-15-intel # 改用 Intel 架構打包，讓 Intel iMac 與 M 系列晶片皆可執行
+  build-macos:
+    runs-on: macos-15-intel
 
     steps:
-      - name: 1. 取得專案程式碼
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 2. 設定 Python 環境
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 3. 安裝 pywebview 與 pyinstaller
+      - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pywebview pyinstaller
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview pyobjc
 
-      - name: 4. 打包成 macOS .app 應用程式
+      - name: Build .app with PyInstaller
         run: |
-          python3 -m PyInstaller --noconsole --windowed --add-data "index.html:." --name "個人代辦小精靈" app.py
+          pyinstaller --noconfirm --windowed --clean --name "PersonalTodoElf" \
+            --add-data "index.html:." \
+            --add-data "themes.css:." \
+            --add-data "themes-data.js:." \
+            --add-data "app.js:." \
+            --add-data "presets:presets" \
+            app.py
 
-      - name: 5. 保留完整 .app 結構並壓縮成品
+      - name: Ad-hoc Sign App
+        run: |
+          codesign --force --deep --sign - "dist/PersonalTodoElf.app"
+
+      - name: Package into ZIP
         run: |
           cd dist
-          zip -r -y "../Mac版-個人代辦小精靈.zip" "個人代辦小精靈.app"
+          ditto -c -k --sequesterRsrc --keepParent "PersonalTodoElf.app" "PersonalTodoElf-macOS.zip"
 
-      - name: 6. 上傳成品供下載
+      - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mac版-個人代辦小精靈
-          path: Mac版-個人代辦小精靈.zip
+          name: PersonalTodoElf-macOS
+          path: dist/PersonalTodoElf-macOS.zip
