@@ -3,437 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Todo & Pomodoro Widget</title>
-    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+TC:wght@300;400;500;700&family=Orbitron:wght@700;900&family=Yuji+Syuku&display=swap" rel="stylesheet">
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            overflow: hidden;
-            user-select: none;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            transition: background 0.3s ease, color 0.3s ease;
-        }
-
-        .hidden { display: none !important; }
-
-        /* 頂部控制列 */
-        .title-bar {
-            height: 46px;
-            padding: 0 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: move;
-            flex-shrink: 0;
-        }
-        .title-left { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-        .app-title { white-space: nowrap; }
-        .theme-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .window-controls { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
-        button, select { cursor: pointer; border: none; padding: 4px 8px; font-size: 12px; transition: all 0.2s; }
-
-        /* 收合時專屬：填滿下方區域的主題動態讀取條儀表板 */
-        .dock-progress-panel {
-            flex: 1;
-            padding: 8px 16px 12px 16px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 8px;
-        }
-        .dock-info-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            gap: 10px;
-        }
-        .dock-task-label {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-weight: 500;
-        }
-        .dock-track {
-            width: 100%;
-            height: 12px;
-            overflow: hidden;
-            position: relative;
-        }
-        .dock-fill {
-            height: 100%;
-            width: 100%;
-            transition: width 0.4s linear, background 0.3s ease;
-        }
-        .dock-status {
-            font-size: 11.5px;
-            font-weight: bold;
-            letter-spacing: 0.06em;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        /* 最後 10 秒緊急倒數預警特效 */
-        .dock-fill.urgent-warn {
-            background: #FF3B30 !important;
-            box-shadow: 0 0 8px #FF3B30 !important;
-            animation: urgentPulse 0.6s infinite alternate !important;
-        }
-        .dock-status.urgent-text {
-            color: #FF3B30 !important;
-            animation: urgentPulse 0.6s infinite alternate;
-        }
-        @keyframes urgentPulse {
-            from { opacity: 1; }
-            to { opacity: 0.45; }
-        }
-
-        /* 主內容區 */
-        #main-content {
-            padding: 18px 20px;
-            flex: 1;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        /* 透明度控制列 */
-        .opacity-bar {
-            display: flex; align-items: center; gap: 10px;
-            font-size: 11px; padding: 6px 10px;
-        }
-        .opacity-bar input[type="range"] { flex: 1; cursor: pointer; height: 4px; }
-
-        /* 🍅 番茄鐘卡片 */
-        .pomodoro-card { padding: 16px 18px; text-align: center; }
-        .pomo-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 8px; }
-        #pomo-settings { margin: 10px 0; padding: 10px; font-size: 12px; display: flex; flex-direction: column; gap: 8px; }
-        .pomo-set-row { display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .pomo-set-row input { width: 46px; padding: 4px; text-align: center; }
-        .pomo-display { font-size: 36px; font-weight: bold; margin: 6px 0 12px 0; }
-        .pomo-controls { display: flex; justify-content: center; gap: 8px; }
-
-        /* 新增任務區 */
-        .input-group { display: flex; flex-direction: column; gap: 10px; }
-        .sub-inputs { display: flex; gap: 8px; }
-        input[type="text"] { width: 100%; padding: 10px 12px; outline: none; font-size: 13px; }
-        input[type="number"] { width: 58px; padding: 8px; outline: none; text-align: center; font-size: 13px; }
-        #add-btn { flex: 1; font-weight: bold; }
-        .media-hint { font-size: 11px; opacity: 0.75; }
-
-        /* 任務列表 */
-        ul { list-style: none; display: flex; flex-direction: column; gap: 10px; padding-bottom: 10px; }
-        li { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; line-height: 1.6; }
-        .task-left { display: flex; align-items: center; gap: 12px; cursor: pointer; flex: 1; word-break: break-all; }
-        .task-bullet { font-weight: bold; font-size: 13px; }
-        .completed span { text-decoration: line-through; opacity: 0.45; }
-        .task-right { display: flex; align-items: center; gap: 10px; font-size: 12px; flex-shrink: 0; }
-        .gba-arrow { display: none; }
-
-        /* ================= 提醒跳窗基底與主題插畫容器 ================= */
-        #alarm-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.82);
-            display: flex; justify-content: center; align-items: center;
-            z-index: 999; padding: 18px; text-align: center;
-        }
-        .alarm-box {
-            position: relative;
-            padding: 22px 20px;
-            width: 100%;
-            max-height: 92vh;
-            overflow-y: auto;
-        }
-        /* 主題專屬內建插圖區 */
-        #alarm-theme-art {
-            margin: 8px auto 12px auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            z-index: 2;
-        }
-        /* GBA 魔王血條專屬區 */
-        #gba-boss-hud {
-            background: #F8F8D8;
-            color: #181818;
-            border: 3px solid #282828;
-            border-radius: 6px 0 6px 0;
-            padding: 6px 10px;
-            margin-bottom: 10px;
-            text-align: left;
-            font-size: 11px;
-            box-shadow: 3px 3px 0 #000;
-        }
-        .gba-hp-bar-bg {
-            width: 100%; height: 8px; background: #484848;
-            border: 1px solid #000; margin-top: 4px;
-        }
-        .gba-hp-bar-fill {
-            width: 18%; height: 100%; background: #E04038;
-            animation: hpBlink 0.5s infinite alternate;
-        }
-        @keyframes hpBlink { from { opacity: 1; } to { opacity: 0.4; } }
-
-        #alarm-media-container img, #alarm-media-container video {
-            max-width: 100%; max-height: 170px; margin: 10px 0; border-radius: 4px;
-        }
-        #dismiss-alarm-btn { width: 100%; padding: 11px; margin-top: 12px; position: relative; z-index: 2; }
-
-
-        /* ==========================================================================
-           1. 🌾 極簡風（無印良品 MUJI：紅標吊牌、日系留白、佛系生活哲學）
-           ========================================================================== */
-        body.theme-muji {
-            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-weight: 400; letter-spacing: 0.08em; line-height: 1.75;
-            background-color: #F7F6F2; color: #333333; border: 1px solid #DCD9D0;
-        }
-        body.theme-muji .title-bar { background-color: #EFECE6; border-bottom: 1px solid #E2DFD7; }
-        body.theme-muji .app-title { font-weight: 500; font-size: 13px; color: #7F0019; }
-        body.theme-muji .dock-progress-panel { background-color: #F7F6F2; }
-        body.theme-muji .dock-track { background-color: #E5E2DC; height: 5px; border-radius: 2px; }
-        body.theme-muji .dock-fill { background-color: #7F0019; }
-        body.theme-muji .dock-fill.idle-anim {
-            background: linear-gradient(90deg, #E5E2DC, #7F0019, #E5E2DC);
-            background-size: 200% 100%;
-            animation: mujiSlide 3s ease-in-out infinite;
-        }
-        @keyframes mujiSlide { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        body.theme-muji .dock-status { color: #7F0019; font-weight: 500; }
-
-        body.theme-muji button, body.theme-muji select {
-            background-color: #EFECE6; color: #333333; border: 1px solid #D5D1C8; border-radius: 2px; letter-spacing: 0.06em;
-        }
-        body.theme-muji button:hover { background-color: #E4E0D8; }
-        body.theme-muji .pomodoro-card { background-color: #FFFFFF; border: 1px solid #E2DFD7; border-radius: 2px; }
-        body.theme-muji .pomo-display { font-weight: 300; letter-spacing: 0.14em; color: #222; }
-        body.theme-muji #pomo-start-btn, body.theme-muji #add-btn { background-color: #7F0019; color: #FFFFFF; border-color: #7F0019; font-weight: 400; }
-        body.theme-muji input[type="text"], body.theme-muji input[type="number"] { background-color: #FFFFFF; border: 1px solid #D5D1C8; border-radius: 2px; color: #333; letter-spacing: 0.06em; }
-        body.theme-muji li { background-color: #FFFFFF; border: 1px solid #E5E2DC; border-radius: 2px; font-size: 13.5px; }
-
-        /* 無印跳窗設計：紅標吊牌質感 */
-        body.theme-muji .alarm-box {
-            background-color: #F7F6F2; color: #333333;
-            border: 1px solid #DCD9D0; border-top: 8px solid #7F0019;
-            border-radius: 2px; animation: mujiFade 0.4s ease-out;
-        }
-        body.theme-muji #alarm-title {
-            display: inline-block; background: #7F0019; color: #FFF;
-            font-size: 12px; font-weight: 500; padding: 2px 12px;
-            letter-spacing: 0.15em; margin-bottom: 10px;
-        }
-        body.theme-muji #alarm-quote {
-            font-size: 12.5px; color: #666; line-height: 1.8;
-            border-top: 1px dashed #DCD9D0; border-bottom: 1px dashed #DCD9D0;
-            padding: 10px 6px; margin-bottom: 12px;
-        }
-        body.theme-muji #alarm-task-text { font-size: 15px; font-weight: 500; color: #222; }
-        body.theme-muji #dismiss-alarm-btn { background-color: #7F0019; color: #FFF; letter-spacing: 0.12em; }
-        @keyframes mujiFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-
-        /* ==========================================================================
-           2. 🎮 像素遊戲風（GBA 掌機：魔王遭遇戰 HUD、精靈球抖動、RPG 對話框）
-           ========================================================================== */
-        body.theme-gba {
-            font-family: 'DotGothic16', monospace;
-            letter-spacing: 0.06em; line-height: 1.6;
-            background-color: #4B4E8A; color: #F8F8F8; border: 4px solid #2B2D54;
-        }
-        body.theme-gba .title-bar { background-color: #2B2D54; border-bottom: 3px solid #1A1B36; }
-        body.theme-gba .app-title { color: #FFCC00; text-shadow: 2px 2px #000; font-size: 14px; }
-        body.theme-gba .dock-progress-panel { background-color: #383B6E; }
-        body.theme-gba .dock-track {
-            background-color: #1A1B36; border: 2px solid #FFFFFF; outline: 2px solid #000; height: 14px;
-        }
-        body.theme-gba .dock-fill { background-color: #55FF55; }
-        body.theme-gba .dock-fill.idle-anim {
-            background: repeating-linear-gradient(90deg, #55FF55 0px, #55FF55 12px, #2ECC71 12px, #2ECC71 24px);
-            background-size: 200% 100%; animation: gbaHpFlow 1.2s linear infinite;
-        }
-        @keyframes gbaHpFlow { 0% { background-position: 0 0; } 100% { background-position: 48px 0; } }
-        body.theme-gba .dock-status { color: #55FF55; text-shadow: 1px 1px #000; }
-
-        body.theme-gba button, body.theme-gba select {
-            font-family: 'DotGothic16', monospace; background-color: #383B6E; color: #FFF;
-            border: 2px solid #FFF; border-radius: 0; box-shadow: 2px 2px 0px #1A1B36;
-        }
-        body.theme-gba .pomodoro-card { background-color: #9BBC0F; color: #0F380F; border: 4px solid #232542; }
-        body.theme-gba #pomo-start-btn, body.theme-gba #add-btn { background-color: #E04038; color: #FFF; }
-        body.theme-gba input[type="text"], body.theme-gba input[type="number"] {
-            font-family: 'DotGothic16', monospace; background-color: #E8F0D8; color: #0F380F; border: 3px solid #232542; border-radius: 0;
-        }
-        body.theme-gba li {
-            background: linear-gradient(180deg, #1E50A2 0%, #102B63 100%);
-            border: 2px solid #FFFFFF; outline: 2px solid #102B63; border-radius: 4px; font-size: 13px;
-        }
-
-        /* GBA 跳窗設計：經典遭遇戰對話框 + 精靈球左右搖晃動畫 */
-        body.theme-gba #alarm-modal { align-items: flex-end; padding-bottom: 20px; }
-        body.theme-gba .alarm-box {
-            background: linear-gradient(180deg, #1A4B9C 0%, #0C2454 100%);
-            color: #FFFFFF; border: 3px solid #FFFFFF; outline: 3px solid #000000;
-            border-radius: 6px; text-align: left; box-shadow: 0 6px 0 #000;
-        }
-        .pokeball-wobble { animation: ballWobble 0.9s ease-in-out infinite; transform-origin: bottom center; }
-        @keyframes ballWobble {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(-16deg); }
-            75% { transform: rotate(16deg); }
-        }
-        body.theme-gba #alarm-title { color: #FFDE00; font-size: 14px; margin-bottom: 6px; text-shadow: 2px 2px #000; }
-        body.theme-gba #alarm-quote { color: #88EEFF; font-size: 12px; margin-bottom: 8px; text-shadow: 1px 1px #000; }
-        body.theme-gba #alarm-task-text { min-height: 40px; font-size: 14px; line-height: 1.6; color: #FFF; text-shadow: 1px 1px #000; }
-        body.theme-gba #dismiss-alarm-btn { background-color: #232542; color: #FFDE00; border: 2px solid #FFF; text-align: right; }
-        body.theme-gba .gba-arrow { display: inline-block; animation: gbaBounce 0.6s infinite alternate; }
-        @keyframes gbaBounce { from { transform: translateY(0); } to { transform: translateY(3px); } }
-
-
-        /* ==========================================================================
-           3. 📟 數碼寶貝風（Digivice：雙層旋轉進化光環 + 勇氣紋章）
-           ========================================================================== */
-        body.theme-digimon {
-            font-family: 'Orbitron', 'DotGothic16', sans-serif;
-            letter-spacing: 0.06em; line-height: 1.6;
-            background-color: #D96B27; color: #1A1A1A; border: 4px solid #3B4CCA;
-        }
-        body.theme-digimon .title-bar { background-color: #293896; color: #FFF; border-bottom: 3px solid #111; }
-        body.theme-digimon .app-title { font-weight: 900; color: #00F0FF; text-shadow: 0 0 6px #00F0FF; font-size: 13px; }
-        body.theme-digimon .dock-progress-panel { background-color: #1A2456; color: #00F0FF; }
-        body.theme-digimon .dock-track {
-            background-color: #050B1A; border: 2px solid #00F0FF; box-shadow: inset 0 0 6px #00F0FF; height: 13px;
-        }
-        body.theme-digimon .dock-fill { background-color: #00F0FF; box-shadow: 0 0 10px #00F0FF; }
-        body.theme-digimon .dock-fill.idle-anim {
-            background: linear-gradient(90deg, #00F0FF, #FFDE00, #FF8800, #00F0FF);
-            background-size: 200% 100%; animation: digiPulse 2s linear infinite;
-        }
-        @keyframes digiPulse { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-        body.theme-digimon .dock-status { color: #FFDE00; font-family: 'DotGothic16', monospace; }
-
-        body.theme-digimon button, body.theme-digimon select {
-            font-family: 'DotGothic16', monospace; background-color: #2C2F33; color: #00F0FF; border: 2px solid #00F0FF; border-radius: 4px;
-        }
-        body.theme-digimon .pomodoro-card {
-            background-color: #A8B5A2;
-            background-image: linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px);
-            background-size: 4px 4px; color: #1B2419; border: 4px solid #333; border-radius: 6px;
-        }
-        body.theme-digimon #pomo-start-btn, body.theme-digimon #add-btn { background-color: #00F0FF; color: #0A1128; font-weight: bold; }
-        body.theme-digimon input[type="text"], body.theme-digimon input[type="number"] {
-            font-family: 'DotGothic16', monospace; background-color: #E8ECE6; color: #111; border: 2px solid #293896; border-radius: 4px;
-        }
-        body.theme-digimon li { background-color: #23272A; color: #00F0FF; border-left: 5px solid #FFCC00; border-radius: 2px; font-size: 13px; }
-        #digi-flash-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000;
-            background: radial-gradient(circle, #FFFFFF 20%, #00F0FF 60%, #293896 100%);
-            animation: digiEvoFlash 0.85s ease-in-out forwards;
-        }
-        @keyframes digiEvoFlash {
-            0% { opacity: 0; transform: scale(0.2); } 30% { opacity: 1; transform: scale(1.2); filter: brightness(2); }
-            50% { opacity: 0.4; } 75% { opacity: 1; filter: brightness(2.5); } 100% { opacity: 0; transform: scale(1.5); }
-        }
-        body.theme-digimon .alarm-box {
-            background: radial-gradient(circle at center, #11224D 0%, #050B1A 100%);
-            color: #FFFFFF; border: 3px solid #00F0FF; box-shadow: 0 0 24px #00F0FF, inset 0 0 18px #00F0FF; border-radius: 8px;
-        }
-        body.theme-digimon .digi-ring {
-            position: absolute; top: 50%; left: 50%; width: 260px; height: 260px; margin-top: -130px; margin-left: -130px;
-            border: 3px dashed rgba(0, 240, 255, 0.4); border-radius: 50%; pointer-events: none; animation: spinRing 6s linear infinite;
-        }
-        .crest-glow { animation: crestPulse 1.5s ease-in-out infinite alternate; }
-        @keyframes crestPulse { from { filter: drop-shadow(0 0 4px #FF8800); transform: scale(0.95); } to { filter: drop-shadow(0 0 14px #FFDE00); transform: scale(1.06); } }
-        body.theme-digimon #alarm-title { color: #FFDE00; font-size: 18px; text-shadow: 0 0 10px #FF8800; margin-bottom: 8px; position: relative; z-index: 2; }
-        body.theme-digimon #alarm-quote { color: #FF9E44; font-size: 12.5px; margin-bottom: 10px; position: relative; z-index: 2; }
-        body.theme-digimon #alarm-task-text { position: relative; z-index: 2; font-size: 15px; font-weight: bold; color: #00F0FF; white-space: pre-line; }
-        body.theme-digimon #dismiss-alarm-btn { background: linear-gradient(90deg, #FF8800, #FFDE00); color: #050B1A; font-weight: 900; }
-        @keyframes spinRing { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-
-        /* ==========================================================================
-           4. 🍥 火影忍者風（NARUTO：通靈術卷軸、旋轉寫輪眼、火影紅印章）
-           ========================================================================== */
-        body.theme-naruto {
-            font-family: 'Noto Sans TC', sans-serif !important;
-            letter-spacing: 0.06em; line-height: 1.65;
-            background-color: #18202C !important;
-            color: #F4EFE6 !important;
-            border: 3px solid #F37021 !important;
-        }
-        body.theme-naruto .title-bar {
-            background: linear-gradient(180deg, #C7CFD9 0%, #8A94A0 100%) !important;
-            color: #1A1E24 !important; border-bottom: 3px solid #4A525D !important;
-        }
-        body.theme-naruto .app-title { font-family: 'Yuji Syuku', serif; font-weight: 700; font-size: 14px; color: #111 !important; }
-        body.theme-naruto .dock-progress-panel { background-color: #18202C !important; color: #FFA24C !important; }
-        body.theme-naruto .dock-track {
-            background-color: #0F141C !important; border: 2px solid #F37021 !important; height: 13px; border-radius: 3px;
-        }
-        body.theme-naruto .dock-fill { background-color: #F37021 !important; box-shadow: 0 0 8px #F37021; }
-        body.theme-naruto .dock-fill.idle-anim {
-            background: linear-gradient(90deg, #00A8FF, #F37021, #00A8FF) !important;
-            background-size: 200% 100% !important; animation: chakraFlow 2.2s linear infinite;
-        }
-        @keyframes chakraFlow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-        body.theme-naruto .dock-status { color: #F37021 !important; font-family: 'Yuji Syuku', serif; }
-
-        body.theme-naruto button, body.theme-naruto select {
-            background-color: #263142 !important; color: #F37021 !important;
-            border: 1px solid #F37021 !important; border-radius: 3px; font-weight: bold;
-        }
-        body.theme-naruto button:hover { background-color: #F37021 !important; color: #18202C !important; }
-        body.theme-naruto .pomodoro-card {
-            background: radial-gradient(circle at center, #2A3649 0%, #161D28 100%) !important;
-            border: 2px solid #F37021 !important; border-radius: 6px;
-        }
-        body.theme-naruto .pomo-header { color: #FFA24C !important; font-weight: bold; }
-        body.theme-naruto .pomo-display { font-family: 'Yuji Syuku', serif; color: #F37021 !important; text-shadow: 0 0 8px rgba(243, 112, 33, 0.6); }
-        body.theme-naruto #pomo-start-btn, body.theme-naruto #add-btn {
-            background-color: #F37021 !important; color: #FFFFFF !important; border: 1px solid #FF9E5E !important;
-        }
-        body.theme-naruto input[type="text"], body.theme-naruto input[type="number"] {
-            background-color: #F4EAD2 !important; color: #2B2118 !important; border: 2px solid #8C6D46 !important; border-radius: 3px;
-        }
-        body.theme-naruto li {
-            background-color: #F4EAD2 !important; color: #2B2118 !important;
-            border-left: 6px solid #D9381E !important; border-right: 6px solid #8C6D46 !important;
-            border-radius: 2px; font-weight: 500;
-        }
-        body.theme-naruto li .del-btn { background: transparent !important; border: none !important; color: #8C6D46 !important; }
-
-        /* 火影跳窗設計：卷軸軸心 + 火影印章 + 旋轉寫輪眼 */
-        body.theme-naruto .alarm-box {
-            background-color: #F4EAD2 !important; color: #1E1812 !important;
-            border-top: 10px solid #8C1D0B !important; border-bottom: 10px solid #8C1D0B !important;
-            border-left: 3px solid #F37021 !important; border-right: 3px solid #F37021 !important;
-            border-radius: 4px; box-shadow: 0 0 35px rgba(255, 255, 255, 0.9);
-            animation: narutoSmokePop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-        .sharingan-spin { animation: spinRing 4s linear infinite; }
-        body.theme-naruto #alarm-title {
-            font-family: 'Yuji Syuku', serif; font-size: 19px; color: #D9381E !important;
-            border-bottom: 2px dashed #8C6D46; padding-bottom: 6px; margin-bottom: 10px;
-        }
-        body.theme-naruto #alarm-quote {
-            font-family: 'Yuji Syuku', serif; font-size: 13px; color: #4A351E !important;
-            background: rgba(217, 56, 30, 0.1); padding: 9px 10px; margin-bottom: 10px;
-            border-left: 4px solid #D9381E; text-align: left; line-height: 1.65;
-        }
-        body.theme-naruto #alarm-task-text { font-size: 15px; font-weight: bold; color: #18202C !important; }
-        body.theme-naruto #dismiss-alarm-btn {
-            font-family: 'Yuji Syuku', serif; font-size: 15px;
-            background-color: #D9381E !important; color: #FFF !important; border: 2px solid #8C1D0B !important;
-        }
-        @keyframes narutoSmokePop {
-            0% { transform: scale(0.3); opacity: 0; filter: blur(12px) brightness(2); }
-            60% { transform: scale(1.05); opacity: 1; filter: blur(2px) brightness(1.3); }
-            100% { transform: scale(1); opacity: 1; filter: blur(0) brightness(1); }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+TC:wght@300;400;500;700&family=Orbitron:wght@700;900&family=Yuji+Syuku&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="themes.css">
 </head>
 <body class="theme-muji">
 
@@ -444,12 +15,20 @@
             <span class="app-title" id="header-title">無印待辦・MUJI</span>
         </div>
         <div class="window-controls">
-            <select id="theme-select" title="切換外觀風格">
-                <option value="theme-muji">無印極簡</option>
-                <option value="theme-gba">GBA 像素</option>
-                <option value="theme-digimon">數碼寶貝</option>
-                <option value="theme-naruto">火影忍者</option>
-            </select>
+            <div class="custom-dropdown" id="theme-dropdown">
+                <button type="button" class="dropdown-trigger" id="theme-trigger" title="切換外觀風格">
+                    <span id="current-theme-label">無印極簡</span>
+                    <span style="font-size: 9px;">▼</span>
+                </button>
+                <div class="dropdown-menu hidden" id="theme-menu">
+                    <div class="dropdown-item" data-value="theme-muji">無印極簡</div>
+                    <div class="dropdown-item" data-value="theme-gba">GBA 像素</div>
+                    <div class="dropdown-item" data-value="theme-digimon">數碼寶貝</div>
+                    <div class="dropdown-item" data-value="theme-naruto">火影忍者</div>
+                    <div class="dropdown-item" data-value="theme-mermaid">真珠美人魚</div>
+                    <div class="dropdown-item" data-value="theme-tamagotchi">塔麻可吉</div>
+                </div>
+            </div>
             <button id="dock-btn" title="收合為精簡讀取條">▾</button>
             <button id="min-btn" title="縮小到工作列">—</button>
             <button id="close-btn" title="關閉程式">✕</button>
@@ -470,606 +49,298 @@
     <!-- 主內容區 -->
     <div id="main-content">
         <!-- 透明度控制列 -->
-        <div class="opacity-bar">
+        <div class="opacity-bar" id="opacity-bar">
             <span id="opacity-icon">◐</span>
             <span>透明度</span>
             <input type="range" id="opacity-slider" min="0.3" max="1" step="0.05" value="1">
             <span id="opacity-val">100%</span>
         </div>
 
-        <!-- 🍅 番茄鐘模組 -->
-        <div class="pomodoro-card">
+        <!-- 🍅 番茄鐘模組（可獨立收折 / 單獨顯示） -->
+        <div class="pomodoro-card" id="section-pomo">
             <div class="pomo-header">
-                <span id="pomo-mode-label">○ 專注時間 (FOCUS)</span>
-                <button id="pomo-setting-toggle" title="自訂番茄鐘時間">⚙</button>
+                <div class="collapsible-title" onclick="toggleSectionFold('pomo')" title="點擊展開/收折番茄鐘">
+                    <span class="fold-arrow" id="fold-arrow-pomo">▾</span>
+                    <span id="pomo-mode-label">○ 專注時間 (FOCUS)</span>
+                    <span class="mini-status-badge hidden" id="mini-pomo-badge">25:00</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="solo-view-btn" id="solo-btn-pomo" onclick="toggleSoloSection('pomo')" title="僅顯示番茄鐘，收折其他區塊">👁 單獨</button>
+                    <button type="button" id="pomo-setting-toggle" title="自訂番茄鐘時間">⚙</button>
+                </div>
             </div>
             
-            <div id="pomo-settings" class="hidden">
-                <div class="pomo-set-row">
-                    <span>專注</span>
-                    <input type="number" id="pomo-work-min" value="25" min="0">分
-                    <input type="number" id="pomo-work-sec" value="0" min="0" max="59">秒
+            <div id="pomo-body" class="collapsible-body">
+                <div id="pomo-settings" class="hidden">
+                    <div class="pomo-set-row">
+                        <span>專注</span>
+                        <input type="number" id="pomo-work-min" value="25" min="0">分
+                        <input type="number" id="pomo-work-sec" value="0" min="0" max="59">秒
+                    </div>
+                    <div class="pomo-set-row">
+                        <span>休息</span>
+                        <input type="number" id="pomo-break-min" value="5" min="0">分
+                        <input type="number" id="pomo-break-sec" value="0" min="0" max="59">秒
+                        <button id="pomo-apply-btn">套用</button>
+                    </div>
                 </div>
-                <div class="pomo-set-row">
-                    <span>休息</span>
-                    <input type="number" id="pomo-break-min" value="5" min="0">分
-                    <input type="number" id="pomo-break-sec" value="0" min="0" max="59">秒
-                    <button id="pomo-apply-btn">套用</button>
-                </div>
-            </div>
 
-            <div class="pomo-display" id="pomo-timer-display">25:00</div>
-            <div class="pomo-controls">
-                <button id="pomo-start-btn">▶ 開始</button>
-                <button id="pomo-reset-btn">↺ 重置</button>
-                <button id="pomo-switch-btn">⇄ 切換</button>
+                <div class="pomo-display" id="pomo-timer-display">25:00</div>
+                <div class="pomo-controls">
+                    <button id="pomo-start-btn">▶ 開始</button>
+                    <button id="pomo-reset-btn">↺ 重置</button>
+                    <button id="pomo-switch-btn">⇄ 切換</button>
+                </div>
             </div>
         </div>
 
-        <!-- 新增任務區 -->
-        <div class="input-group">
-            <input type="text" id="task-input" placeholder="寫下待辦事項...">
-            <div class="sub-inputs">
-                <input type="number" id="min-input" placeholder="分" min="0" title="分鐘">
-                <input type="number" id="sec-input" placeholder="秒" min="0" max="59" title="秒數">
-                <button id="media-btn" title="選擇提醒圖片/影片">附件</button>
-                <button id="add-btn">＋ 新增</button>
+        <!-- 💧👀🏃 三合一健康定時提醒模組（可獨立收折 / 單獨顯示） -->
+        <div class="wellness-card" id="section-wellness">
+            <div class="wellness-header">
+                <div class="collapsible-title" onclick="toggleSectionFold('wellness')" title="點擊展開/收折健康提醒">
+                    <span class="fold-arrow" id="fold-arrow-wellness">▾</span>
+                    <span id="wellness-header-label">🌿 健康三合一提醒</span>
+                    <span class="mini-status-badge hidden" id="mini-wellness-badge">已關閉</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="solo-view-btn" id="solo-btn-wellness" onclick="toggleSoloSection('wellness')" title="僅顯示健康提醒，收折其他區塊">👁 單獨</button>
+                    <button type="button" id="wellness-setting-toggle" title="細部設定各活動提醒時間與圖片">⚙</button>
+                </div>
             </div>
-            <div id="selected-media-name" class="media-hint"></div>
+
+            <div id="wellness-body" class="collapsible-body">
+                <div class="wellness-pills">
+                    <button type="button" class="wellness-pill" id="well-pill-water" onclick="toggleWellnessItem('water')" title="點擊開啟/關閉喝水提醒">
+                        <span class="wellness-pill-title">💧 喝水</span>
+                        <span class="wellness-pill-timer" id="well-timer-water">OFF</span>
+                    </button>
+                    <button type="button" class="wellness-pill" id="well-pill-eyes" onclick="toggleWellnessItem('eyes')" title="點擊開啟/關閉護眼提醒">
+                        <span class="wellness-pill-title">👀 護眼</span>
+                        <span class="wellness-pill-timer" id="well-timer-eyes">OFF</span>
+                    </button>
+                    <button type="button" class="wellness-pill" id="well-pill-move" onclick="toggleWellnessItem('move')" title="點擊開啟/關閉活動提醒">
+                        <span class="wellness-pill-title">🏃 活動</span>
+                        <span class="wellness-pill-timer" id="well-timer-move">OFF</span>
+                    </button>
+                </div>
+
+                <div id="wellness-settings" class="hidden">
+                    <div class="wellness-set-row">
+                        <span class="wellness-set-left">💧 喝水提醒間隔</span>
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <input type="number" id="well-min-water" value="30" min="1" max="999"> <span>分</span>
+                            <button type="button" class="wellness-test-btn" onclick="triggerWellnessAlarm('water')" title="立即預覽喝水提醒">⚡ 測試</button>
+                        </div>
+                    </div>
+                    <div class="wellness-set-row">
+                        <span class="wellness-set-left">👀 眼睛休息間隔</span>
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <input type="number" id="well-min-eyes" value="30" min="1" max="999"> <span>分</span>
+                            <button type="button" class="wellness-test-btn" onclick="triggerWellnessAlarm('eyes')" title="立即預覽護眼提醒">⚡ 測試</button>
+                        </div>
+                    </div>
+                    <div class="wellness-set-row">
+                        <span class="wellness-set-left">🏃 起來活動間隔</span>
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <input type="number" id="well-min-move" value="30" min="1" max="999"> <span>分</span>
+                            <button type="button" class="wellness-test-btn" onclick="triggerWellnessAlarm('move')" title="立即預覽活動提醒">⚡ 測試</button>
+                        </div>
+                    </div>
+
+                    <!-- 圖庫狀態與一鍵匯入 -->
+                    <div class="wellness-lib-bar">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                            <span id="wellness-lib-count">圖庫偵測中...</span>
+                            <button type="button" id="wellness-import-btn" style="padding:2px 7px; font-size:10.5px;">📁 匯入 W/E/K 圖片</button>
+                        </div>
+                        <div id="wellness-lib-path" style="font-size:9.5px; opacity:0.78; word-break:break-all;"></div>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:2px;">
+                        <button type="button" id="wellness-enable-all-btn">全部開啟</button>
+                        <button type="button" id="wellness-apply-btn">套用時間設定</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 任務列表 -->
-        <ul id="task-list"></ul>
+        <!-- ➕ 新增任務與分類篩選區（可獨立收折） -->
+        <div class="task-creator-section" id="section-creator">
+            <div class="section-header">
+                <div class="section-header-left" onclick="toggleSectionFold('creator')" title="點擊展開/收折新增與篩選列">
+                    <span class="fold-arrow" id="fold-arrow-creator">▾</span>
+                    <span>➕ 新增與分類篩選</span>
+                </div>
+                <span style="font-size: 10px; opacity: 0.72;" id="creator-collapsed-hint" class="hidden">已收折</span>
+            </div>
+
+            <div id="creator-body" class="collapsible-body">
+                <div class="input-group">
+                    <div class="input-top-row">
+                        <select id="task-category-select" class="cat-select" title="選擇任務分類"></select>
+                        <input type="text" id="task-input" placeholder="寫下待辦事項...">
+                    </div>
+                    
+                    <div class="mode-tabs">
+                        <button type="button" class="mode-tab active" id="add-mode-countdown" onclick="switchAddTimeMode('countdown')">⏱ 倒計時</button>
+                        <button type="button" class="mode-tab" id="add-mode-deadline" onclick="switchAddTimeMode('deadline')">📅 指定 Deadline</button>
+                    </div>
+
+                    <div class="sub-inputs">
+                        <div id="add-countdown-box" style="display:flex; gap:6px;">
+                            <input type="number" id="min-input" placeholder="分" min="0" title="分鐘">
+                            <input type="number" id="sec-input" placeholder="秒" min="0" max="59" title="秒數">
+                        </div>
+                        <input type="datetime-local" id="deadline-input" class="hidden" title="設定最後截止時間">
+
+                        <button id="media-btn" title="選擇提醒圖片/影片">附件</button>
+                        <button id="add-btn">＋ 新增</button>
+                    </div>
+                    <div id="selected-media-name" class="media-hint"></div>
+                </div>
+
+                <!-- 分類篩選列 -->
+                <div class="category-bar" id="category-filter-bar" style="margin-top: 8px;"></div>
+            </div>
+        </div>
+
+        <!-- ⏳ 未完成事項區塊（可獨立收折 / 單獨顯示） -->
+        <div class="task-section" id="section-pending">
+            <div class="section-header">
+                <div class="section-header-left" onclick="toggleSectionFold('pending')" title="點擊展開/收折未完成事項">
+                    <span class="fold-arrow" id="fold-arrow-pending">▾</span>
+                    <span>⏳ 未完成事項</span>
+                    <span class="section-count" id="pending-count">0</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="solo-view-btn" id="solo-btn-pending" onclick="toggleSoloSection('pending')" title="僅顯示未完成事項，收折其他區塊">👁 單獨顯示</button>
+                </div>
+            </div>
+            <ul id="pending-list"></ul>
+        </div>
+
+        <!-- ✅ 已完成事項區塊（可獨立收折 / 單獨顯示） -->
+        <div class="task-section" id="section-completed">
+            <div class="section-header">
+                <div class="section-header-left" onclick="toggleSectionFold('completed')" title="點擊展開/收折已完成事項">
+                    <span class="fold-arrow" id="fold-arrow-completed">▾</span>
+                    <span>✅ 已完成事項</span>
+                    <span class="section-count" id="completed-count">0</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="solo-view-btn" id="solo-btn-completed" onclick="toggleSoloSection('completed')" title="僅顯示已完成事項，收折其他區塊">👁 單獨顯示</button>
+                    <button type="button" class="clear-done-btn" id="clear-completed-btn" title="清除所有已完成項目">清空</button>
+                </div>
+            </div>
+            <ul id="completed-list"></ul>
+        </div>
     </div>
 
     <!-- 數碼寶貝進化閃光特效層 -->
     <div id="digi-flash-overlay" class="hidden"></div>
+
+    <!-- 新增 / 管理分類彈窗 -->
+    <div id="cat-modal" class="hidden">
+        <div class="modal-box">
+            <h3 class="modal-title">🏷 建立與管理分類</h3>
+            <div class="edit-form">
+                <div>
+                    <label class="edit-label">新增分類名稱（自動套用當前主題配色）</label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="new-cat-name" placeholder="例如：專案、健身、購物..." maxlength="10">
+                        <button type="button" id="save-cat-btn" style="white-space:nowrap; padding:8px 12px;">＋ 建立</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="edit-label">現有分類（點擊 ✕ 可刪除自訂分類）</label>
+                    <div class="cat-manage-list" id="cat-manage-list"></div>
+                </div>
+                <div class="edit-actions">
+                    <button type="button" id="close-cat-modal-btn">完成關閉</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 個別任務修改彈窗 -->
+    <div id="edit-modal" class="hidden">
+        <div class="modal-box">
+            <h3 class="modal-title">✎ 修改待辦事項</h3>
+            <div class="edit-form">
+                <div>
+                    <label class="edit-label">任務分類</label>
+                    <select id="edit-task-category" style="width:100%; padding:8px;"></select>
+                </div>
+
+                <div>
+                    <label class="edit-label">任務內容</label>
+                    <input type="text" id="edit-task-text">
+                </div>
+
+                <div>
+                    <label class="edit-label">提醒時間設定</label>
+                    <div class="mode-tabs" style="margin-bottom: 8px;">
+                        <button type="button" class="mode-tab" id="edit-mode-none" onclick="switchEditTimeMode('none')">無計時</button>
+                        <button type="button" class="mode-tab" id="edit-mode-countdown" onclick="switchEditTimeMode('countdown')">⏱ 倒計時</button>
+                        <button type="button" class="mode-tab" id="edit-mode-deadline" onclick="switchEditTimeMode('deadline')">📅 Deadline</button>
+                    </div>
+
+                    <div id="edit-countdown-box" class="hidden" style="display:flex; gap:8px; align-items:center;">
+                        <input type="number" id="edit-min-input" placeholder="分" min="0"> <span>分</span>
+                        <input type="number" id="edit-sec-input" placeholder="秒" min="0" max="59"> <span>秒</span>
+                    </div>
+
+                    <input type="datetime-local" id="edit-deadline-input" class="hidden" style="width:100%;">
+                </div>
+
+                <div class="edit-actions">
+                    <button type="button" id="cancel-edit-btn">取消</button>
+                    <button type="button" id="save-edit-btn">儲存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 附件圖片 / 影片預覽彈窗 -->
+    <div id="media-preview-modal" class="hidden">
+        <div class="modal-box">
+            <h3 class="modal-title">📎 任務附件預覽</h3>
+            <p id="preview-task-caption"></p>
+            <div id="preview-media-container"></div>
+            <div class="edit-actions">
+                <button type="button" id="close-preview-btn">關閉預覽</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 時間到！多功能風格提醒跳窗 -->
     <div id="alarm-modal" class="hidden">
         <div class="alarm-box" id="alarm-box">
             <div class="digi-ring"></div>
 
-            <!-- GBA 專屬魔王遭遇戰血條 HUD -->
             <div id="gba-boss-hud" class="hidden">
                 <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                    <span>BOSS：死線大魔王</span>
+                    <span id="gba-boss-name">BOSS：死線大魔王</span>
                     <span>Lv.99</span>
                 </div>
                 <div class="gba-hp-bar-bg"><div class="gba-hp-bar-fill"></div></div>
             </div>
 
+            <div id="tama-status-hud" class="hidden">
+                <span id="tama-hud-left">HUNGRY: ♥♡♡♡</span>
+                <span id="tama-hud-right">HAPPY: ♥♡♡♡</span>
+            </div>
+
             <h2 id="alarm-title">時間到了</h2>
-
-            <!-- 主題專屬角色/元素 SVG 插圖區 -->
             <div id="alarm-theme-art"></div>
-
-            <!-- 幽默風趣語錄區 -->
             <p id="alarm-quote" class="hidden"></p>
-
-            <!-- 任務目標文字 -->
             <p id="alarm-task-text"></p>
-
-            <!-- 使用者自訂附加圖片/影片區 -->
             <div id="alarm-media-container"></div>
-
             <button id="dismiss-alarm-btn">確認關閉 <span class="gba-arrow">▼</span></button>
         </div>
     </div>
 
-    <script>
-        let tasks = [];
-        let currentMediaPath = "";
-        let isCollapsed = false;
-        let typewriterTimer = null;
-
-        let pomoMode = 'work';
-        let pomoRunning = false;
-        let pomoTotalSec = 25 * 60;
-        let pomoRemainSec = 25 * 60;
-        let pomoInterval = null;
-
-        const themeConfigs = {
-            'theme-muji': {
-                title: '無印待辦・MUJI',
-                placeholder: '寫下待辦事項...',
-                addText: '＋ 新增',
-                mediaText: '附件',
-                bullet: '○',
-                idleLabel: '日常節奏・無待辦計時',
-                idleStatus: 'MUJI・待機',
-                svg: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7F0019" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="#7F0019"/></svg>`,
-                // 跳窗專屬極簡熱茶與沙漏線條插畫
-                alarmArt: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#7F0019" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="14" y="24" width="28" height="24" rx="2" fill="#FFF"/>
-                    <path d="M42 28h6a4 4 0 0 1 0 8h-6"/>
-                    <path d="M10 52h36"/>
-                    <path d="M22 16c0-3 3-3 3-6M30 16c0-3 3-3 3-6" stroke="#8C857B"/>
-                </svg>`,
-                quotes: [
-                    '「時間到了。雖然發呆也很有美感，但這件事還是得處理一下呢。」',
-                    '「這不是拖延，這是讓靈感發酵的留白時間。現在發酵完成了。」',
-                    '「深呼吸，喝口茶，然後用無印良品般的平靜心情解決它吧。」',
-                    '「把複雜的事情變簡單，最快的方法就是現在立刻把它做完。」'
-                ]
-            },
-            'theme-gba': {
-                title: 'GBA QUEST',
-                placeholder: '輸入冒險任務...',
-                addText: '★ 登錄',
-                mediaText: '道具',
-                bullet: '▶',
-                idleLabel: 'NO ACTIVE TIMER...',
-                idleStatus: 'HP 100%',
-                svg: `<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#FFF" stroke="#111" stroke-width="1.5"/><path d="M1 8h14a7 7 0 0 0-14 0z" fill="#E04038" stroke="#111" stroke-width="1.5"/><circle cx="8" cy="8" r="2.5" fill="#FFF" stroke="#111" stroke-width="1.5"/></svg>`,
-                // 跳窗專屬會左右搖晃的像素風精靈球 SVG
-                alarmArt: `<svg class="pokeball-wobble" width="58" height="58" viewBox="0 0 32 32">
-                    <circle cx="16" cy="16" r="14" fill="#FFF" stroke="#111" stroke-width="2.5"/>
-                    <path d="M2 16h28a14 14 0 0 0-28 0z" fill="#E04038" stroke="#111" stroke-width="2.5"/>
-                    <rect x="2" y="14.5" width="28" height="3" fill="#111"/>
-                    <circle cx="16" cy="16" r="5" fill="#FFF" stroke="#111" stroke-width="2.5"/>
-                    <circle cx="16" cy="16" r="2" fill="#FFDE00"/>
-                </svg>`,
-                quotes: [
-                    '野生的「死線」跳出來了！效果拔群！你的摸魚時間已歸零！',
-                    '大木博士：「現在還不是偷懶的時候喔！快去完成任務吧！」',
-                    '你的「專注力」已降至 1 點！快使用「立刻行動」回復狀態！',
-                    '恭喜觸發隱藏支線任務！完成後可獲得經驗值 +9999！'
-                ]
-            },
-            'theme-digimon': {
-                title: 'DIGIVICE',
-                placeholder: '輸入數碼任務指令...',
-                addText: '⚡ 傳送',
-                mediaText: '數據',
-                bullet: '◈',
-                idleLabel: 'DIGITAL WORLD SCANNING...',
-                idleStatus: 'STANDBY',
-                svg: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00F0FF" stroke-width="2"><circle cx="12" cy="12" r="5" fill="#FF8800"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1"/></svg>`,
-                // 跳窗專屬發光勇氣紋章 SVG
-                alarmArt: `<svg class="crest-glow" width="66" height="66" viewBox="0 0 64 64" fill="none">
-                    <circle cx="32" cy="32" r="28" stroke="#00F0FF" stroke-width="2" stroke-dasharray="6 4"/>
-                    <circle cx="32" cy="32" r="13" fill="#FF8800" stroke="#FFDE00" stroke-width="3"/>
-                    <path d="M32 6v8M32 50v8M6 32h8M50 32h8M13.6 13.6l5.6 5.6M44.8 44.8l5.6 5.6M13.6 50.4l5.6-5.6M44.8 19.2l5.6-5.6" stroke="#FFDE00" stroke-width="3.5" stroke-linecap="round"/>
-                </svg>`,
-                quotes: [
-                    '亞古獸究～極～進化——「再不行動就要完蛋獸」！！',
-                    '警告！數碼世界偵測到「拖延症病毒」，請立即執行淨化！',
-                    '你的勇氣徽章正在發光！把這項任務變成進化的養分吧！',
-                    '神聖計畫緊急通訊：「被選召的孩子啊，時間已經到了！」'
-                ]
-            },
-            'theme-naruto': {
-                title: '木葉任務卷軸',
-                placeholder: '寫下木葉任務委託...',
-                addText: '🍥 接取',
-                mediaText: '卷軸',
-                bullet: '✦',
-                idleLabel: '木葉忍者村・無緊急任務',
-                idleStatus: '查克拉充盈',
-                svg: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#18202C" stroke-width="2.2" stroke-linecap="round"><path d="M12 12c0-2.5 2-4 4-4 2.5 0 4.5 2 4.5 5 0 4-3.5 7-8 7-5 0-8.5-4-8.5-9 0-3.5 2-6.5 4.5-8L6 2"/><path d="M19 16l3 2"/></svg>`,
-                // 跳窗專屬旋轉三勾玉寫輪眼 SVG
-                alarmArt: `<svg class="sharingan-spin" width="64" height="64" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="27" fill="#D9381E" stroke="#111" stroke-width="3.5"/>
-                    <circle cx="32" cy="32" r="16" fill="none" stroke="#111" stroke-width="2"/>
-                    <circle cx="32" cy="32" r="5.5" fill="#111"/>
-                    <circle cx="32" cy="16" r="3.5" fill="#111"/>
-                    <circle cx="18" cy="40" r="3.5" fill="#111"/>
-                    <circle cx="46" cy="40" r="3.5" fill="#111"/>
-                </svg>`,
-                quotes: [
-                    '卡卡西：「抱歉，我在人生的道路上迷路了……但你可不能迷路啊！」',
-                    '鳴人：「多重影分身之術！……可惡，分身也都跑去偷懶了，還是自己做吧！」',
-                    '鹿丸：「真是麻煩死了……不過既然接了任務，就一口氣解決吧。」',
-                    '「說到做到，準時完成任務，這就是我的忍道！」—— 漩渦鳴人'
-                ]
-            }
-        };
-
-        window.addEventListener('pywebviewready', async () => {
-            tasks = await pywebview.api.load_tasks();
-            applyTheme('theme-muji');
-            renderTasks();
-        });
-
-        function applyTheme(theme) {
-            document.body.className = theme;
-            const cfg = themeConfigs[theme];
-            document.getElementById('header-title').innerText = cfg.title;
-            document.getElementById('theme-badge-icon').innerHTML = cfg.svg;
-            document.getElementById('task-input').placeholder = cfg.placeholder;
-            document.getElementById('add-btn').innerText = cfg.addText;
-            document.getElementById('media-btn').innerText = cfg.mediaText;
-            updatePomoDisplay();
-            updateDockProgress();
-            renderTasks();
-        }
-
-        document.getElementById('theme-select').addEventListener('change', (e) => {
-            applyTheme(e.target.value);
-        });
-
-        const opacitySlider = document.getElementById('opacity-slider');
-        opacitySlider.addEventListener('input', (e) => {
-            const val = e.target.value;
-            document.getElementById('opacity-val').innerText = Math.round(val * 100) + '%';
-            pywebview.api.set_opacity(val);
-        });
-
-        document.getElementById('dock-btn').addEventListener('click', () => {
-            const content = document.getElementById('main-content');
-            const dockPanel = document.getElementById('dock-progress-wrapper');
-            isCollapsed = !isCollapsed;
-
-            if (isCollapsed) {
-                content.classList.add('hidden');
-                dockPanel.classList.remove('hidden');
-                document.getElementById('dock-btn').innerText = '▴';
-                updateDockProgress();
-            } else {
-                content.classList.remove('hidden');
-                dockPanel.classList.add('hidden');
-                document.getElementById('dock-btn').innerText = '▾';
-            }
-            pywebview.api.set_collapsed(isCollapsed);
-        });
-        document.getElementById('min-btn').addEventListener('click', () => pywebview.api.minimize_window());
-        document.getElementById('close-btn').addEventListener('click', () => pywebview.api.close_window());
-
-        function updateDockProgress() {
-            const fillEl = document.getElementById('dock-fill');
-            const statusEl = document.getElementById('dock-status-text');
-            const labelEl = document.getElementById('dock-task-name');
-            const theme = document.body.className;
-            const cfg = themeConfigs[theme] || themeConfigs['theme-muji'];
-
-            let candidates = [];
-
-            tasks.forEach(t => {
-                if (t.endTime && !t.completed && !t.alerted) {
-                    const remainSec = Math.max(0, Math.ceil((t.endTime - Date.now()) / 1000));
-                    const totalSec = t.durationSec || Math.max(remainSec, 60);
-                    candidates.push({
-                        type: 'task',
-                        label: `⏰ 即將提醒：${t.text}`,
-                        remainSec: remainSec,
-                        totalSec: totalSec
-                    });
-                }
-            });
-
-            if (pomoRunning) {
-                candidates.push({
-                    type: 'pomo',
-                    label: pomoMode === 'work' ? '🍅 番茄鐘專注中' : '☕ 番茄鐘休息中',
-                    remainSec: pomoRemainSec,
-                    totalSec: pomoTotalSec
-                });
-            }
-
-            if (candidates.length > 0) {
-                candidates.sort((a, b) => a.remainSec - b.remainSec);
-                const urgent = candidates[0];
-
-                const pct = Math.max(3, Math.min(100, (urgent.remainSec / urgent.totalSec) * 100));
-                fillEl.classList.remove('idle-anim');
-                fillEl.style.width = pct + '%';
-
-                if (urgent.remainSec <= 10) {
-                    fillEl.classList.add('urgent-warn');
-                    statusEl.classList.add('urgent-text');
-                } else {
-                    fillEl.classList.remove('urgent-warn');
-                    statusEl.classList.remove('urgent-text');
-                }
-
-                const m = Math.floor(urgent.remainSec / 60).toString().padStart(2, '0');
-                const s = (urgent.remainSec % 60).toString().padStart(2, '0');
-                labelEl.innerText = urgent.label;
-                statusEl.innerText = `倒數 ${m}:${s}`;
-                return;
-            }
-
-            fillEl.classList.remove('urgent-warn');
-            statusEl.classList.remove('urgent-text');
-            const nextPending = tasks.find(t => !t.completed);
-            if (nextPending) {
-                fillEl.classList.add('idle-anim');
-                fillEl.style.width = '100%';
-                labelEl.innerText = `📌 待辦：${nextPending.text}`;
-                statusEl.innerText = '進行中';
-                return;
-            }
-
-            fillEl.classList.add('idle-anim');
-            fillEl.style.width = '100%';
-            labelEl.innerText = cfg.idleLabel;
-            statusEl.innerText = cfg.idleStatus;
-        }
-
-        function updatePomoDisplay() {
-            const m = Math.floor(pomoRemainSec / 60).toString().padStart(2, '0');
-            const s = (pomoRemainSec % 60).toString().padStart(2, '0');
-            document.getElementById('pomo-timer-display').innerText = `${m}:${s}`;
-            
-            const theme = document.body.className;
-            if (theme === 'theme-naruto') {
-                document.getElementById('pomo-mode-label').innerText = 
-                    pomoMode === 'work' ? '🔥 查克拉修煉 (專注)' : '🍜 一樂拉麵補給 (休息)';
-            } else if (theme === 'theme-gba') {
-                document.getElementById('pomo-mode-label').innerText = 
-                    pomoMode === 'work' ? '⚔️ BATTLE TRAINING' : '💖 POKÉMON CENTER';
-            } else if (theme === 'theme-digimon') {
-                document.getElementById('pomo-mode-label').innerText = 
-                    pomoMode === 'work' ? '⚡ DIGI-CHARGE' : '🔋 SLEEP MODE';
-            } else {
-                document.getElementById('pomo-mode-label').innerText = 
-                    pomoMode === 'work' ? '○ 專注時間 (FOCUS)' : '□ 休息時間 (BREAK)';
-            }
-            updateDockProgress();
-        }
-
-        document.getElementById('pomo-setting-toggle').addEventListener('click', () => {
-            document.getElementById('pomo-settings').classList.toggle('hidden');
-        });
-
-        document.getElementById('pomo-apply-btn').addEventListener('click', () => {
-            resetPomo();
-            document.getElementById('pomo-settings').classList.add('hidden');
-        });
-
-        function getConfiguredPomoSeconds() {
-            if (pomoMode === 'work') {
-                const m = parseInt(document.getElementById('pomo-work-min').value) || 0;
-                const s = parseInt(document.getElementById('pomo-work-sec').value) || 0;
-                return Math.max(1, m * 60 + s);
-            } else {
-                const m = parseInt(document.getElementById('pomo-break-min').value) || 0;
-                const s = parseInt(document.getElementById('pomo-break-sec').value) || 0;
-                return Math.max(1, m * 60 + s);
-            }
-        }
-
-        function resetPomo() {
-            clearInterval(pomoInterval);
-            pomoRunning = false;
-            document.getElementById('pomo-start-btn').innerText = '▶ 開始';
-            pomoTotalSec = getConfiguredPomoSeconds();
-            pomoRemainSec = pomoTotalSec;
-            updatePomoDisplay();
-        }
-
-        document.getElementById('pomo-start-btn').addEventListener('click', () => {
-            if (pomoRunning) {
-                clearInterval(pomoInterval);
-                pomoRunning = false;
-                document.getElementById('pomo-start-btn').innerText = '▶ 繼續';
-                updateDockProgress();
-            } else {
-                pomoRunning = true;
-                document.getElementById('pomo-start-btn').innerText = '⏸ 暫停';
-                updateDockProgress();
-                pomoInterval = setInterval(() => {
-                    if (pomoRemainSec > 0) {
-                        pomoRemainSec--;
-                        updatePomoDisplay();
-                    } else {
-                        clearInterval(pomoInterval);
-                        pomoRunning = false;
-                        document.getElementById('pomo-start-btn').innerText = '▶ 開始';
-                        const msg = pomoMode === 'work' 
-                            ? '專注時間完成！適度休息一下吧。' 
-                            : '休息結束！準備開始下一輪專注。';
-                        pomoMode = pomoMode === 'work' ? 'break' : 'work';
-                        pomoTotalSec = getConfiguredPomoSeconds();
-                        pomoRemainSec = pomoTotalSec;
-                        updatePomoDisplay();
-                        triggerAlarm({ text: msg, media: '' });
-                    }
-                }, 1000);
-            }
-        });
-
-        document.getElementById('pomo-reset-btn').addEventListener('click', resetPomo);
-        document.getElementById('pomo-switch-btn').addEventListener('click', () => {
-            pomoMode = pomoMode === 'work' ? 'break' : 'work';
-            resetPomo();
-        });
-
-        document.getElementById('media-btn').addEventListener('click', async () => {
-            const path = await pywebview.api.select_media();
-            if (path) {
-                currentMediaPath = path;
-                const fileName = path.split('/').pop();
-                document.getElementById('selected-media-name').innerText = `已選取附件: ${fileName}`;
-            }
-        });
-
-        document.getElementById('add-btn').addEventListener('click', () => {
-            const text = document.getElementById('task-input').value.trim();
-            const mins = parseInt(document.getElementById('min-input').value) || 0;
-            const secs = parseInt(document.getElementById('sec-input').value) || 0;
-            const totalSec = mins * 60 + secs;
-            const totalMs = totalSec * 1000;
-
-            if (!text) return;
-
-            tasks.push({
-                id: Date.now(),
-                text: text,
-                completed: false,
-                durationSec: totalSec,
-                endTime: totalMs > 0 ? Date.now() + totalMs : null,
-                media: currentMediaPath,
-                alerted: false
-            });
-
-            saveAndRender();
-            document.getElementById('task-input').value = '';
-            document.getElementById('min-input').value = '';
-            document.getElementById('sec-input').value = '';
-            currentMediaPath = '';
-            document.getElementById('selected-media-name').innerText = '';
-        });
-
-        function toggleTask(id) {
-            const task = tasks.find(t => t.id === id);
-            if (task) task.completed = !task.completed;
-            saveAndRender();
-        }
-
-        function deleteTask(id) {
-            tasks = tasks.filter(t => t.id !== id);
-            saveAndRender();
-        }
-
-        function saveAndRender() {
-            pywebview.api.save_tasks(tasks);
-            renderTasks();
-            updateDockProgress();
-        }
-
-        function renderTasks() {
-            const list = document.getElementById('task-list');
-            list.innerHTML = '';
-            const theme = document.body.className;
-            const cfg = themeConfigs[theme] || themeConfigs['theme-muji'];
-
-            tasks.forEach(task => {
-                const li = document.createElement('li');
-                li.className = task.completed ? 'completed' : '';
-
-                let timerHtml = '';
-                if (task.endTime && !task.completed) {
-                    const remain = Math.max(0, Math.ceil((task.endTime - Date.now()) / 1000));
-                    const m = Math.floor(remain / 60).toString().padStart(2, '0');
-                    const s = (remain % 60).toString().padStart(2, '0');
-                    timerHtml = `<span class="timer">${m}:${s}</span>`;
-                }
-
-                li.innerHTML = `
-                    <div class="task-left" onclick="toggleTask(${task.id})">
-                        <span class="task-bullet">${task.completed ? '✓' : cfg.bullet}</span>
-                        <span>${task.text}</span>
-                    </div>
-                    <div class="task-right">
-                        ${timerHtml}
-                        ${task.media ? '<span class="media-badge">▣</span>' : ''}
-                        <button class="del-btn" onclick="deleteTask(${task.id})">✕</button>
-                    </div>
-                `;
-                list.appendChild(li);
-            });
-        }
-
-        setInterval(() => {
-            let needRender = false;
-            tasks.forEach(task => {
-                if (task.endTime && !task.completed && !task.alerted) {
-                    if (Date.now() >= task.endTime) {
-                        task.alerted = true;
-                        triggerAlarm(task);
-                        pywebview.api.save_tasks(tasks);
-                    }
-                    needRender = true;
-                }
-            });
-            if (needRender) {
-                renderTasks();
-                updateDockProgress();
-            }
-        }, 500);
-
-        // ================= 強化版四大主題跳窗觸發器 =================
-        function triggerAlarm(task) {
-            if (isCollapsed) document.getElementById('dock-btn').click();
-            opacitySlider.value = 1;
-            document.getElementById('opacity-val').innerText = '100%';
-            pywebview.api.set_opacity(1);
-
-            const currentTheme = document.body.className;
-            const cfg = themeConfigs[currentTheme] || themeConfigs['theme-muji'];
-            const modal = document.getElementById('alarm-modal');
-            const titleEl = document.getElementById('alarm-title');
-            const artEl = document.getElementById('alarm-theme-art');
-            const quoteEl = document.getElementById('alarm-quote');
-            const textEl = document.getElementById('alarm-task-text');
-            const dismissBtn = document.getElementById('dismiss-alarm-btn');
-            const container = document.getElementById('alarm-media-container');
-            const gbaHud = document.getElementById('gba-boss-hud');
-            
-            container.innerHTML = '';
-            gbaHud.classList.add('hidden');
-            clearInterval(typewriterTimer);
-
-            // 載入該主題專屬 SVG 角色/元素插畫
-            artEl.innerHTML = cfg.alarmArt;
-
-            // 隨機挑選一句該主題的幽默風趣語錄
-            const randomQuote = cfg.quotes[Math.floor(Math.random() * cfg.quotes.length)];
-            quoteEl.innerText = randomQuote;
-            quoteEl.classList.remove('hidden');
-
-            // 載入使用者自訂圖片或影片（若有）
-            if (task.media) {
-                if (task.media.endsWith('.mp4') || task.media.endsWith('.webm')) {
-                    container.innerHTML = `<video src="${task.media}" autoplay loop controls></video>`;
-                } else {
-                    container.innerHTML = `<img src="${task.media}" alt="提醒圖片">`;
-                }
-            }
-
-            if (currentTheme === 'theme-digimon') {
-                const flash = document.getElementById('digi-flash-overlay');
-                flash.classList.remove('hidden');
-                titleEl.innerText = '⚡ DIGIVOLUTION!!';
-                textEl.innerText = `【任務目標達成】\n${task.text}`;
-                dismissBtn.innerHTML = '⚡ 接收數位能量（關閉）';
-                
-                setTimeout(() => {
-                    flash.classList.add('hidden');
-                    modal.classList.remove('hidden');
-                }, 850);
-            } 
-            else if (currentTheme === 'theme-gba') {
-                gbaHud.classList.remove('hidden');
-                titleEl.innerText = '▶ WILD DEADLINE APPEARED!';
-                textEl.innerText = '';
-                dismissBtn.innerHTML = '▶ 迎戰任務 (關閉) <span class="gba-arrow">▼</span>';
-                modal.classList.remove('hidden');
-                
-                let idx = 0;
-                const fullText = `【任務】${task.text}`;
-                typewriterTimer = setInterval(() => {
-                    if (idx < fullText.length) {
-                        textEl.innerText += fullText.charAt(idx);
-                        idx++;
-                    } else {
-                        clearInterval(typewriterTimer);
-                    }
-                }, 40);
-            } 
-            else if (currentTheme === 'theme-naruto') {
-                titleEl.innerText = '💨 砰！通靈・S級緊急任務！';
-                textEl.innerText = `【卷軸指令】${task.text}`;
-                dismissBtn.innerHTML = '🙏 結印・解（解除通靈）';
-                modal.classList.remove('hidden');
-            } 
-            else {
-                // 無印良品風
-                titleEl.innerText = 'MUJI TIME・時間提醒';
-                textEl.innerText = task.text;
-                dismissBtn.innerHTML = '好，現在去處理';
-                modal.classList.remove('hidden');
-            }
-        }
-
-        document.getElementById('dismiss-alarm-btn').addEventListener('click', () => {
-            clearInterval(typewriterTimer);
-            document.getElementById('alarm-modal').classList.add('hidden');
-            document.getElementById('alarm-media-container').innerHTML = '';
-            updateDockProgress();
-        });
-    </script>
+    <script src="themes-data.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
